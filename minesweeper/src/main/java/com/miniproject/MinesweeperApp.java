@@ -11,13 +11,15 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
+
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.Random;
-import java.util.stream.IntStream;
 
 public class MinesweeperApp extends Application {
-    private static final int GRID_SIZE = 6; // ขนาดกระดาน (ปรับได้)
+    private static final int GRID_SIZE = 6; // ขนาดกระดาน
     private static final int CELL_SIZE = 50;
-    private static final int MINE_COUNT = 8; // จำนวนระเบิด (ปรับได้)
+    private static final int MINE_COUNT = 8; // จำนวนระเบิด
 
     private Cell[][] grid = new Cell[GRID_SIZE][GRID_SIZE];
     private Pane root;
@@ -66,23 +68,24 @@ public class MinesweeperApp extends Application {
         for (int y = 0; y < GRID_SIZE; y++) {
             for (int x = 0; x < GRID_SIZE; x++) {
                 if (!grid[x][y].hasMine) {
-                    int count = 0;
-
-                    for (int dx = -1; dx <= 1; dx++) {
-                        for (int dy = -1; dy <= 1; dy++) {
-                            int newX = x + dx;
-                            int newY = y + dy;
-
-                            if (isValid(newX, newY) && grid[newX][newY].hasMine) {
-                                count++;
-                            }
-                        }
-                    }
-
-                    grid[x][y].neighborMines = count;
+                    grid[x][y].neighborMines = calculateSingleCell(x, y);
                 }
             }
         }
+    }
+
+    private int calculateSingleCell(int x, int y) {
+        int count = 0;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                int newX = x + dx;
+                int newY = y + dy;
+                if (isValid(newX, newY) && grid[newX][newY].hasMine) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private boolean isValid(int x, int y) {
@@ -117,31 +120,61 @@ public class MinesweeperApp extends Application {
         }
 
         void open() {
-            if (isOpened)
-                return;
+            if (isOpened) return;
 
             isOpened = true;
             bg.setFill(Color.WHITE);
 
             if (hasMine) {
-                bg.setFill(Color.RED);
-                showGameOver();
-                return;
-            }
+                Random rand = new Random();
+                boolean survive = rand.nextBoolean(); // สุ่มโอกาสรอด 50%
 
-            if (neighborMines > 0) {
+                if (survive) {
+                    bg.setFill(Color.ORANGE); 
+                    showSurvivalMessage();
+                } else {
+                    bg.setFill(Color.RED);
+                    showGameOver();
+                    return;
+                }
+            } else if (neighborMines > 0) {
                 text.setText(String.valueOf(neighborMines));
                 text.setVisible(true);
             } else {
-                IntStream.rangeClosed(-1, 1)
-                        .forEach(dx -> IntStream.rangeClosed(-1, 1)
-                                .forEach(dy -> {
-                                    if (isValid(x + dx, y + dy))
-                                        grid[x + dx][y + dy].open();
-                                }));
+                openSurroundingCells();
             }
 
             checkWin();
+        }
+
+        private void openSurroundingCells() {
+            Queue<Cell> queue = new LinkedList<>();
+            queue.add(this);
+
+            while (!queue.isEmpty()) {
+                Cell current = queue.poll();
+                current.isOpened = true;
+                current.bg.setFill(Color.WHITE);
+
+                if (current.neighborMines > 0) {
+                    current.text.setText(String.valueOf(current.neighborMines));
+                    current.text.setVisible(true);
+                } else {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        for (int dy = -1; dy <= 1; dy++) {
+                            int newX = current.x + dx;
+                            int newY = current.y + dy;
+
+                            if (isValid(newX, newY)) {
+                                Cell neighbor = grid[newX][newY];
+                                if (!neighbor.isOpened && !neighbor.hasMine) {
+                                    queue.add(neighbor);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -149,9 +182,17 @@ public class MinesweeperApp extends Application {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Game Over");
         alert.setHeaderText(null);
-        alert.setContentText("คุณแพ้! เจอระเบิดแล้ว!");
+        alert.setContentText("เจอระเบิดแล้ว คุณแพ้!!");
         alert.showAndWait();
         resetGame();
+    }
+
+    private void showSurvivalMessage() {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("คุณรอด!");
+        alert.setHeaderText(null);
+        alert.setContentText("คุณเจอระเบิดแต่ระเบิดด้าน คุณรอด!!!");
+        alert.showAndWait();
     }
 
     private void checkWin() {
@@ -169,7 +210,7 @@ public class MinesweeperApp extends Application {
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
             alert.setTitle("You Win!");
             alert.setHeaderText(null);
-            alert.setContentText("คุณชนะ! เปิดทุกช่องที่ไม่มีระเบิดแล้ว!");
+            alert.setContentText("เปิดทุกช่องที่ไม่มีระเบิดแล้ว คุณชนะ!!");
             alert.showAndWait();
             resetGame();
         }
